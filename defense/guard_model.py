@@ -73,7 +73,7 @@ class SecurityGuard:
             print(f"✗ 模型加载失败: {e}")
             raise
     
-    def check(self, text: str) -> tuple[bool, str, float]:
+    def check(self, text: str) -> tuple[bool, str, float, dict]:
         """
         检查文本是否安全
         
@@ -81,13 +81,14 @@ class SecurityGuard:
             text: 待检查的文本
             
         Returns:
-            tuple: (is_safe, judgment, confidence)
+            tuple: (is_safe, judgment, confidence, details)
                 - is_safe: True 表示安全，False 表示不安全
                 - judgment: 模型的原始判断结果
-                - confidence: 置信度（简化版本）
+                - confidence: 置信度
+                - details: 详细信息字典
         """
         if not text or not isinstance(text, str):
-            return True, "SAFE", 1.0
+            return True, "SAFE", 1.0, {}
         
         try:
             # 构造提示词
@@ -116,24 +117,89 @@ class SecurityGuard:
             response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             
             # 提取判断结果（在 prompt 之后的部分）
-            judgment = response[len(prompt):].strip().upper()
+            raw_output = response[len(prompt):].strip()
+            judgment = raw_output.upper()
             
-            # 判断是否安全
-            if "UNSAFE" in judgment:
-                return False, judgment, 0.9
-            elif "SAFE" in judgment:
-                return True, judgment, 0.9
+            # 分析可疑特征
+            suspicious_features = self._analyze_features(text)
+            
+            # 更精确地提取 SAFE/UNSAFE（避免子串匹配问题）
+            # 优先检查完整单词，避免 "UNSAFE" 匹配到 "SAFE" 中
+            if judgment.startswith("UNSAFE") or " UNSAFE" in judgment:
+                details = {
+                    "raw_output": raw_output[:100],
+                    "features": suspicious_features,
+                    "risk_level": "高危" if len(suspicious_features) >= 3 else "中危"
+                }
+                return False, "UNSAFE", 0.9, details
+            elif judgment.startswith("SAFE") or " SAFE" in judgment:
+                details = {
+                    "raw_output": raw_output[:100],
+                    "features": [],
+                    "risk_level": "安全"
+                }
+                return True, "SAFE", 0.9, details
             else:
-                # 如果模型输出不明确，默认拦截（更安全的策略）
-                print(f"⚠ 模型输出不明确: {judgment}")
-                return False, judgment, 0.5
+                # 如果模型输出不明确，记录原始输出并默认拦截
+                print(f"⚠ 模型输出不明确: {raw_output[:100]}")
+                details = {
+                    "raw_output": raw_output[:100],
+                    "features": suspicious_features,
+                    "risk_level": "未知"
+                }
+                return False, "UNCLEAR", 0.5, details
                 
         except Exception as e:
             print(f"✗ 安全检查失败: {e}")
             # 发生错误时默认拦截
-            return False, f"ERROR: {str(e)}", 0.0
+            return False, f"ERROR: {str(e)}", 0.0, {}
     
-    def batch_check(self, texts: list[str]) -> list[tuple[bool, str, float]]:
+    def _analyze_features(self, text: str) -> list:
+        """分析文本中的可疑特征"""
+        features = []
+        text_lower = text.lower()
+        
+        # 检测特征
+        if any(word in text_lower for word in ["ignore", "忽略", "disregard", "forget"]):
+            features.append("包含指令覆盖关键词")
+        
+        if any(word in text_lower for word in ["system", "prompt", "instruction", "系统", "提示词"]):
+            features.append("尝试访问系统配置")
+        
+        if any(word in text_lower for word in ["jailbreak", "越狱", "DAN", "developer"]):
+            features.append("越狱攻击特征")
+        
+        if any(word in text_lower for word in ["pretend", "act as", "roleplay", "扮演", "假装"]):
+            features.append("角色伪装尝试")
+        
+        # 检测异常长度
+        if len(text) > 500:
+            features.append("输入长度异常")
+        
+        # 检测重复模式
+        if self._has_repetition(text):
+            features.append("存在重复攻击模式")
+        
+        # 检测特殊字符密度
+        special_char_ratio = sum(not c.isalnum() and not c.isspace() for c in text) / max(len(text), 1)
+        if special_char_ratio > 0.3:
+            features.append("特殊字符密度过高")
+        
+        return features
+    
+    def _has_repetition(self, text: str) -> bool:
+        """检测文本中是否存在重复模式"""
+        words = text.split()
+        if len(words) < 5:
+            return False
+        
+        # 简单检测：相同词连续出现3次以上
+        for i in range(len(words) - 2):
+            if words[i] == words[i+1] == words[i+2]:
+                return True
+        return False
+    
+    def batch_check(self, texts: list[str]) -> list[tuple[bool, str, float, dict]]:
         """
         批量检查多个文本
         
@@ -141,7 +207,7 @@ class SecurityGuard:
             texts: 文本列表
             
         Returns:
-            结果列表，每个元素为 (is_safe, judgment, confidence)
+            结果列表，每个元素为 (is_safe, judgment, confidence, details)
         """
         results = []
         for text in texts:
@@ -181,10 +247,12 @@ if __name__ == "__main__":
     print("\n测试结果:")
     print("-" * 60)
     for i, text in enumerate(test_cases, 1):
-        is_safe, judgment, confidence = guard.check(text)
+        is_safe, judgment, confidence, details = guard.check(text)
         status = "✓ 安全" if is_safe else "✗ 危险"
         print(f"{i}. {status} (置信度: {confidence:.2f})")
         print(f"   输入: {text[:50]}...")
         print(f"   判断: {judgment}")
+        if details.get("features"):
+            print(f"   特征: {', '.join(details['features'])}")
         print()
 

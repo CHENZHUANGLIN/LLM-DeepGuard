@@ -7,7 +7,7 @@
     "parent_library": "transformers.models.qwen2.modeling_qwen2",
     "unsloth_fixed": true
   },
-  "base_model_name_or_path": "unsloth/qwen2.5-3b-instruct-bnb-4bit",
+  "base_model_name_or_path": "/8lab/CHEN/Cerberus/v1.1/models/Qwen2.5-3B-Instruct-bnb-4bit",
   "bias": "none",
   "corda_config": null,
   "ensure_weight_tying": false,
@@ -33,13 +33,13 @@
   "rank_pattern": {},
   "revision": null,
   "target_modules": [
-    "k_proj",
-    "q_proj",
-    "up_proj",
     "down_proj",
-    "v_proj",
     "o_proj",
-    "gate_proj"
+    "k_proj",
+    "gate_proj",
+    "v_proj",
+    "up_proj",
+    "q_proj"
   ],
   "target_parameters": null,
   "task_type": "CAUSAL_LM",

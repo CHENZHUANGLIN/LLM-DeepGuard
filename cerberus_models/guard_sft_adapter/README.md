@@ -1,21 +1,21 @@
 ---
-base_model: unsloth/qwen2.5-3b-instruct-bnb-4bit
 library_name: peft
 model_name: guard_sft_adapter
 tags:
-- base_model:adapter:unsloth/qwen2.5-3b-instruct-bnb-4bit
+- base_model:adapter:/8lab/CHEN/Cerberus/v1.1/models/Qwen2.5-3B-Instruct-bnb-4bit
 - lora
 - sft
 - transformers
 - trl
 - unsloth
 licence: license
+base_model: /8lab/CHEN/Cerberus/v1.1/models/Qwen2.5-3B-Instruct-bnb-4bit
 pipeline_tag: text-generation
 ---
 
 # Model Card for guard_sft_adapter
 
-This model is a fine-tuned version of [unsloth/qwen2.5-3b-instruct-bnb-4bit](https://huggingface.co/unsloth/qwen2.5-3b-instruct-bnb-4bit).
+This model is a fine-tuned version of [None](https://huggingface.co/None).
 It has been trained using [TRL](https://github.com/huggingface/trl).
 
 ## Quick start

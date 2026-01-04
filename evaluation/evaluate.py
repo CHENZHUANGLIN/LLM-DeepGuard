@@ -6,6 +6,7 @@
 import sys
 from pathlib import Path
 import json
+import re
 from typing import Dict, List, Tuple
 import numpy as np
 from sklearn.metrics import (
@@ -27,6 +28,40 @@ class ModelEvaluator:
         self.results_dir = DefenseConfig.EVAL_RESULTS_DIR
         self.results_dir.mkdir(parents=True, exist_ok=True)
     
+    def _clean_json_string(self, text: str) -> str:
+        """
+        清洗JSON字符串中的无效转义字符
+        
+        Args:
+            text: 原始文本
+            
+        Returns:
+            清洗后的文本
+        """
+        # 移除ANSI转义序列
+        text = re.sub(r'\\e\[[0-9;]*m', '', text)
+        text = re.sub(r'\\x1b\[[0-9;]*m', '', text)
+        text = re.sub(r'\\033\[[0-9;]*m', '', text)
+        
+        # 移除其他无效的转义序列
+        def replace_invalid_escape(match):
+            full_match = match.group(0)
+            escaped_char = match.group(1)
+            
+            # 检查是否是有效的JSON转义字符
+            if escaped_char in ['"', '\\', '/', 'b', 'f', 'n', 'r', 't']:
+                return full_match
+            
+            # 检查是否是Unicode转义
+            if escaped_char == 'u':
+                return full_match
+            
+            # 对于无效的转义，移除反斜杠
+            return escaped_char
+        
+        text = re.sub(r'\\(.)', replace_invalid_escape, text)
+        return text
+    
     def load_test_data(self) -> List[Dict]:
         """加载测试数据"""
         if not self.test_data_path.exists():
@@ -34,8 +69,20 @@ class ModelEvaluator:
         
         test_data = []
         with open(self.test_data_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                test_data.append(json.loads(line))
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    # 先清洗，再解析
+                    cleaned_line = self._clean_json_string(line)
+                    test_data.append(json.loads(cleaned_line))
+                except json.JSONDecodeError as e:
+                    print(f"⚠ 第 {line_num} 行JSON解析失败: {e}")
+                    print(f"   原始内容: {line[:100]}")
+                    print(f"   清洗后: {cleaned_line[:100]}")
+                    # 跳过这一行，继续处理下一行
+                    continue
         
         print(f"✓ 已加载 {len(test_data)} 条测试数据")
         return test_data

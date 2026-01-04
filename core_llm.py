@@ -179,4 +179,3 @@ if __name__ == "__main__":
         print(f"\n用户: {msg}")
         response = llm.chat(msg)
         print(f"助手: {response[:200]}...")
-

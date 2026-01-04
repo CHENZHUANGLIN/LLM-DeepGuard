@@ -1,9 +1,9 @@
 ---
-base_model: unsloth/qwen2.5-3b-instruct-bnb-4bit
+base_model: /8lab/CHEN/Cerberus/v1.1/models/Qwen2.5-3B-Instruct-bnb-4bit
 library_name: peft
 pipeline_tag: text-generation
 tags:
-- base_model:adapter:unsloth/qwen2.5-3b-instruct-bnb-4bit
+- base_model:adapter:/8lab/CHEN/Cerberus/v1.1/models/Qwen2.5-3B-Instruct-bnb-4bit
 - dpo
 - lora
 - trl
