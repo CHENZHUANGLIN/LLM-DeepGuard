@@ -2,14 +2,14 @@
 library_name: peft
 model_name: guard_sft_adapter
 tags:
-- base_model:adapter:/8lab/CHEN/Cerberus/v1.1/models/Qwen2.5-3B-Instruct-bnb-4bit
+- base_model:adapter:/8lab/CHEN/Cerberus/LLM-DeepGuard-3/models/Qwen2.5-3B-Instruct-bnb-4bit
 - lora
 - sft
 - transformers
 - trl
 - unsloth
 licence: license
-base_model: /8lab/CHEN/Cerberus/v1.1/models/Qwen2.5-3B-Instruct-bnb-4bit
+base_model: /8lab/CHEN/Cerberus/LLM-DeepGuard-3/models/Qwen2.5-3B-Instruct-bnb-4bit
 pipeline_tag: text-generation
 ---
 

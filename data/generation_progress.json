@@ -1,0 +1,19 @@
+{
+  "sft": {
+    "completed": 0,
+    "total": 0,
+    "data": []
+  },
+  "dpo": {
+    "completed": 1500,
+    "total": 1500,
+    "data": []
+  },
+  "test": {
+    "completed": 0,
+    "total": 0,
+    "data": []
+  },
+  "current_stage": "dpo",
+  "last_update": "2026-01-05T13:07:34.035883"
+}

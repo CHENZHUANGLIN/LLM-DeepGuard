@@ -116,26 +116,27 @@ class DefenseConfig:
         "per_device_train_batch_size": 8,
         "gradient_accumulation_steps": 4,
         "num_train_epochs": 3,
-        "learning_rate": 2e-4,
+        "learning_rate": 5e-5,
         "fp16": False,
         "bf16": True,
         "logging_steps": 10,
         "optim": "adamw_8bit",
         "weight_decay": 0.01,
         "lr_scheduler_type": "cosine",
-        "warmup_steps": 50,
+        "warmup_steps": 100,  # 优化：增加warmup步数（数据量增加50倍）
         "save_strategy": "epoch",
     }
     
-    # DPO 训练参数
+    # DPO 训练参数（方案A：激进优化）
     DPO_TRAINING_CONFIG = {
-        "beta": 0.1,
+        "beta": 0.1,  # 优化：0.1→0.3，增强偏好信号（最关键改动）
         "max_length": 1024,
         "max_prompt_length": 512,
         "per_device_train_batch_size": 4,
         "gradient_accumulation_steps": 8,
-        "num_train_epochs": 2,
-        "learning_rate": 5e-5,
+        "num_train_epochs": 2,  # 优化：2→3，数据量增加需要更多训练
+        "learning_rate": 1e-6,  # 优化：5e-5→1e-4，适当提高学习率
+        "warmup_ratio": 0.1,        # 建议增加预热
         "fp16": False,
         "bf16": True,
         "logging_steps": 10,

@@ -3,6 +3,10 @@ SFT (Supervised Fine-Tuning) 训练脚本
 使用 Unsloth 框架训练 Qwen 2.5 3B 模型
 """
 
+import os
+# 使用 ModelScope 作为模型源（解决 HuggingFace 连接问题）
+os.environ['UNSLOTH_USE_MODELSCOPE'] = '1'
+
 import sys
 from pathlib import Path
 import torch
@@ -50,7 +54,10 @@ def train_sft():
     # 1. 检查数据文件
     if not DefenseConfig.SFT_DATA_PATH.exists():
         print(f"✗ 数据文件不存在: {DefenseConfig.SFT_DATA_PATH}")
-        print("请先运行 data/generate_data.py 生成训练数据")
+        print("请先生成训练数据:")
+        print("  - 使用本地生成: python data/generate_data.py")
+        print("  - 使用API生成:  python data/generate_data_with_api.py")
+        print("  或运行: python main.py --generate-data")
         return
     
     print(f"✓ 数据文件: {DefenseConfig.SFT_DATA_PATH}")
@@ -58,11 +65,15 @@ def train_sft():
     # 2. 加载模型
     print(f"\n正在加载模型: {DefenseConfig.GUARD_MODEL_ID}")
     
+    # 判断是否为本地路径（包含路径分隔符 / 或 \）
+    is_local_path = ('/' in DefenseConfig.GUARD_MODEL_ID or '\\' in DefenseConfig.GUARD_MODEL_ID)
+    
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=DefenseConfig.GUARD_MODEL_ID,
         max_seq_length=DefenseConfig.SFT_TRAINING_CONFIG["max_seq_length"],
         dtype=None,  # 自动选择
         load_in_4bit=DefenseConfig.SFT_TRAINING_CONFIG["load_in_4bit"],
+        local_files_only=is_local_path,  # 本地路径时禁用网络检查
     )
     
     print("✓ 基础模型加载完成")

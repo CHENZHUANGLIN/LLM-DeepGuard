@@ -1,11 +1,16 @@
 """
-第二层防御：AI 安全卫士
+第二层防御:AI 安全卫士
 使用微调后的 Qwen 2.5 3B 模型进行智能判断
 """
 
+import os
 import torch
 from unsloth import FastLanguageModel
 from .config import DefenseConfig
+
+# 设置离线模式环境变量，强制只使用本地文件
+os.environ['HF_HUB_OFFLINE'] = '1'
+os.environ['TRANSFORMERS_OFFLINE'] = '1'
 
 
 class SecurityGuard:
@@ -34,12 +39,13 @@ class SecurityGuard:
     def _load_model(self):
         """加载模型和 tokenizer"""
         try:
-            # 加载基础模型
+            # 加载基础模型（强制使用本地文件，不连接 HuggingFace）
             self.model, self.tokenizer = FastLanguageModel.from_pretrained(
                 model_name=DefenseConfig.GUARD_MODEL_ID,
                 max_seq_length=self.max_length,
                 dtype=None,  # 自动选择
                 load_in_4bit=self.use_4bit,
+                local_files_only=True,  # 强制离线模式，只使用本地文件
             )
             
             # 如果提供了 adapter 路径，加载 adapter

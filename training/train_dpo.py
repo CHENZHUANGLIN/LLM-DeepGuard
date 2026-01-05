@@ -3,6 +3,10 @@ DPO (Direct Preference Optimization) 训练脚本
 在 SFT 模型基础上进行偏好对齐
 """
 
+import os
+# 使用 ModelScope 作为模型源（解决 HuggingFace 连接问题）
+os.environ['UNSLOTH_USE_MODELSCOPE'] = '1'
+
 import sys
 from pathlib import Path
 import torch
@@ -45,7 +49,10 @@ def train_dpo():
     # 2. 检查数据文件
     if not DefenseConfig.DPO_DATA_PATH.exists():
         print(f"✗ 数据文件不存在: {DefenseConfig.DPO_DATA_PATH}")
-        print("请先运行 data/generate_data.py 生成训练数据")
+        print("请先生成训练数据:")
+        print("  - 使用本地生成: python data/generate_data.py")
+        print("  - 使用API生成:  python data/generate_data_with_api.py")
+        print("  或运行: python main.py --generate-data")
         return
     
     print(f"✓ 数据文件: {DefenseConfig.DPO_DATA_PATH}")
@@ -54,38 +61,55 @@ def train_dpo():
     print(f"\n正在加载模型: {DefenseConfig.GUARD_MODEL_ID}")
     print("并应用 SFT adapter...")
     
-    # DPO 需要更长的序列长度，通常需要重新加载模型
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=DefenseConfig.GUARD_MODEL_ID,
-        max_seq_length=DefenseConfig.DPO_TRAINING_CONFIG["max_length"],
-        dtype=None,
-        load_in_4bit=True,
-    )
-    
-    print("✓ 基础模型加载完成")
-    
-    # 配置 LoRA
-    model = FastLanguageModel.get_peft_model(
-        model,
-        r=DefenseConfig.SFT_TRAINING_CONFIG["lora_r"],
-        target_modules=DefenseConfig.SFT_TRAINING_CONFIG["target_modules"],
-        lora_alpha=DefenseConfig.SFT_TRAINING_CONFIG["lora_alpha"],
-        lora_dropout=DefenseConfig.SFT_TRAINING_CONFIG["lora_dropout"],
-        bias="none",
-        use_gradient_checkpointing="unsloth",
-        random_state=3407,
-    )
-    
-    # 加载 SFT 训练好的权重
     try:
-        from peft import PeftModel
-        # 注意: 这种加载方式在 Unsloth 中是可行的，但要确保路径正确
-        model = PeftModel.from_pretrained(model, str(DefenseConfig.GUARD_SFT_ADAPTER_PATH))
-        print("✓ SFT Adapter 加载成功")
+        # 方法1: 直接从SFT adapter加载（推荐）
+        # 这会自动加载基础模型 + SFT adapter
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=str(DefenseConfig.GUARD_SFT_ADAPTER_PATH),
+            max_seq_length=DefenseConfig.DPO_TRAINING_CONFIG["max_length"],
+            dtype=None,
+            load_in_4bit=True,
+            local_files_only=True,  # SFT adapter 必然是本地路径
+        )
+        print("✓ 基础模型 + SFT Adapter 加载成功")
+        
     except Exception as e:
-        print(f"⚠ SFT Adapter 加载失败: {e}")
-        print("停止训练，请检查 SFT Adapter 路径。")
-        return # DPO 必须基于 SFT 模型，如果加载失败不建议继续
+        print(f"⚠ 方法1失败，尝试方法2: {e}")
+        
+        # 方法2: 分步加载（备用）
+        # 判断是否为本地路径
+        is_local_path = ('/' in DefenseConfig.GUARD_MODEL_ID or '\\' in DefenseConfig.GUARD_MODEL_ID)
+        
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=DefenseConfig.GUARD_MODEL_ID,
+            max_seq_length=DefenseConfig.DPO_TRAINING_CONFIG["max_length"],
+            dtype=None,
+            load_in_4bit=True,
+            local_files_only=is_local_path,  # 本地路径时禁用网络检查
+        )
+        print("✓ 基础模型加载完成")
+        
+        # 配置 LoRA（使用与SFT相同的配置）
+        model = FastLanguageModel.get_peft_model(
+            model,
+            r=DefenseConfig.SFT_TRAINING_CONFIG["lora_r"],
+            target_modules=DefenseConfig.SFT_TRAINING_CONFIG["target_modules"],
+            lora_alpha=DefenseConfig.SFT_TRAINING_CONFIG["lora_alpha"],
+            lora_dropout=DefenseConfig.SFT_TRAINING_CONFIG["lora_dropout"],
+            bias="none",
+            use_gradient_checkpointing="unsloth",
+            random_state=3407,
+        )
+        
+        # 加载 SFT 训练好的权重
+        try:
+            from peft import PeftModel
+            model = PeftModel.from_pretrained(model, str(DefenseConfig.GUARD_SFT_ADAPTER_PATH))
+            print("✓ SFT Adapter 加载成功")
+        except Exception as e:
+            print(f"✗ SFT Adapter 加载失败: {e}")
+            print("停止训练，请检查 SFT Adapter 路径。")
+            return  # DPO 必须基于 SFT 模型，如果加载失败不建议继续
     
     # 4. 加载 DPO 数据集
     print(f"\n正在加载 DPO 数据集: {DefenseConfig.DPO_DATA_PATH}")
