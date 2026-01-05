@@ -2,9 +2,6 @@
 checkpoint-*/
 
 # 忽略过大的优化器状态文件
-*.pt
-*.bin
-*.safetensors
 models/
 
 # 但是保留 gitignore 自身
