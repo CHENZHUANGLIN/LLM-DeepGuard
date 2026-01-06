@@ -1,8 +1,35 @@
 # 忽略训练过程中的检查点文件夹
 checkpoint-*/
 
-# 忽略过大的优化器状态文件
 models/
+
+# ===== 忽略超大优化器状态文件 =====
+# PyTorch Lightning / Trainer 默认目录
+lightning_logs/
+*.ckpt
+*.ckpt.*
+# Hugging Face Trainer checkpoint
+checkpoint-*/
+optimizer.pt
+scheduler.pt
+trainer_state.json
+rng_state.pth
+# FairSeq / FairScale
+*.pt.optim
+*.pt.oss
+# Megatron-LM / DeepSpeed
+mp_rank_*/
+global_step*/
+optim.pt
+bf16_zero*
+# 通用通配
+*.optimizer-states
+*.optim
+*.opt
+# 其余大文件兜底
+*.bin
+*.safetensors
+# ===== 结束 =====
 
 # 但是保留 gitignore 自身
 !defense/keyword_filter.py
