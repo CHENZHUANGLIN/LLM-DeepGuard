@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Cerberus - AI 纵深防御系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- 背景渐变 -->
+    <div class="background-gradient"></div>
+    
+    <!-- 主容器 -->
+    <div class="container">
+        <!-- 顶部导航栏 -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="shield-icon">🛡️</div>
+                    <div class="logo-text">
+                        <h1>Project Cerberus</h1>
+                        <p>AI 纵深防御系统</p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-icon" id="statsBtn" title="统计信息">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M2 10h3M15 10h3M2 5h18M2 15h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                    <button class="btn-icon" id="clearBtn" title="清除历史">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主要内容区 -->
+        <main class="main-content">
+            <!-- 聊天区域 -->
+            <div class="chat-container">
+                <div class="chat-messages" id="chatMessages">
+                    <!-- 欢迎消息 -->
+                    <div class="message system-message">
+                        <div class="message-content">
+                            <div class="system-badge">系统</div>
+                            <p>欢迎使用 Project Cerberus AI 纵深防御系统</p>
+                            <div class="defense-layers">
+                                <div class="layer">
+                                    <span class="layer-icon">🔒</span>
+                                    <span>第一层：关键词黑名单过滤</span>
+                                </div>
+                                <div class="layer">
+                                    <span class="layer-icon">🤖</span>
+                                    <span>第二层：AI 安全卫士</span>
+                                </div>
+                                <div class="layer">
+                                    <span class="layer-icon">⚡</span>
+                                    <span>第三层：提示词强化</span>
+                                </div>
+                            </div>
+                            <p class="hint">您可以尝试正常对话，或测试各种提示词注入攻击</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 输入区域 -->
+                <div class="chat-input-container">
+                    <div class="chat-input-wrapper">
+                        <textarea 
+                            id="messageInput" 
+                            class="chat-input" 
+                            placeholder="输入消息..." 
+                            rows="1"
+                        ></textarea>
+                        <button id="sendBtn" class="send-btn" disabled>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="input-hint">按 Enter 发送，Shift + Enter 换行</div>
+                </div>
+            </div>
+
+            <!-- 侧边栏（统计信息） -->
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <h3>系统统计</h3>
+                    <button class="btn-icon close-sidebar" id="closeSidebar">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="sidebar-content">
+                    <div class="stats-section">
+                        <h4>请求统计</h4>
+                        <div class="stat-item">
+                            <span class="stat-label">总请求数</span>
+                            <span class="stat-value" id="totalRequests">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">安全通过</span>
+                            <span class="stat-value success" id="safeRequests">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">已拦截</span>
+                            <span class="stat-value danger" id="blockedRequests">0</span>
+                        </div>
+                    </div>
+
+                    <div class="stats-section">
+                        <h4>拦截分布</h4>
+                        <div class="stat-item">
+                            <span class="stat-label">关键词过滤</span>
+                            <span class="stat-value" id="blockedByKeyword">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">AI 卫士</span>
+                            <span class="stat-value" id="blockedByGuard">0</span>
+                        </div>
+                    </div>
+
+                    <div class="stats-section">
+                        <h4>防御系统状态</h4>
+                        <div class="status-item">
+                            <span class="status-dot active"></span>
+                            <span>关键词过滤</span>
+                        </div>
+                        <div class="status-item" id="guardStatus">
+                            <span class="status-dot" id="guardStatusDot"></span>
+                            <span id="guardStatusText">AI 卫士</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-dot active"></span>
+                            <span>提示词强化</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- 加载提示 -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <p>正在处理...</p>
+    </div>
+
+    <!-- Toast 通知 -->
+    <div class="toast" id="toast">
+        <span class="toast-message" id="toastMessage"></span>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

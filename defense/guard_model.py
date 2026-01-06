@@ -71,10 +71,13 @@ class SecurityGuard:
                     print(f"⚠ Adapter 加载失败: {e}")
                     print("将使用基础模型（未微调）")
             
+            # 修复 Qwen2Attention 的属性缺失问题（必须在推理模式前）
+            self._patch_attention_attributes()
+            
             # 设置为推理模式
             FastLanguageModel.for_inference(self.model)
             
-            # 修复 Qwen2Attention 的属性缺失问题
+            # 再次确保属性存在（推理模式后可能需要重新设置）
             self._patch_attention_attributes()
             
             print("✓ 模型加载完成\n")
@@ -125,9 +128,13 @@ class SecurityGuard:
                         use_cache=False,  # 禁用缓存避免属性访问错误
                     )
                 except AttributeError as attr_err:
-                    # 如果出现属性错误，尝试使用更基础的生成方式
-                    if "Qwen2Attention" in str(attr_err):
-                        # 重新生成，禁用所有优化
+                    # 如果出现属性错误，尝试动态修复并重试
+                    error_msg = str(attr_err)
+                    if "Qwen2Attention" in error_msg:
+                        print(f"⚠ 检测到 Attention 属性错误，正在动态修复: {error_msg}")
+                        # 重新应用补丁
+                        self._patch_attention_attributes()
+                        # 重新生成
                         outputs = self.model.generate(
                             **inputs,
                             max_new_tokens=10,
@@ -229,10 +236,13 @@ class SecurityGuard:
     def _patch_attention_attributes(self):
         """为 Qwen2Attention 对象添加缺失的属性，避免推理时的属性错误"""
         try:
+            patched_count = 0
             # 遍历模型的所有模块
             for name, module in self.model.named_modules():
-                if 'Qwen2Attention' in str(type(module)):
-                    # 添加可能缺失的属性
+                module_type = type(module).__name__
+                # 更精确地匹配 Qwen2Attention 类型
+                if 'Qwen2Attention' in module_type or 'Qwen2SdpaAttention' in module_type or 'Qwen2FlashAttention2' in module_type:
+                    # === SecGPT 相关属性 ===
                     if not hasattr(module, 'temp_KV'):
                         module.temp_KV = None
                     if not hasattr(module, 'temp_QA'):
@@ -241,6 +251,38 @@ class SecurityGuard:
                         module.RH_Q = None
                     if not hasattr(module, 'paged_attention_K'):
                         module.paged_attention_K = None
+                    if not hasattr(module, 'paged_attention_V'):
+                        module.paged_attention_V = None
+                    
+                    # === 模型架构相关属性 ===
+                    # 最大位置嵌入长度
+                    if not hasattr(module, 'max_position_embeddings'):
+                        module.max_position_embeddings = getattr(module, 'max_seq_length', 32768)
+                    # 注意力头维度
+                    if not hasattr(module, 'head_dim'):
+                        if hasattr(module, 'hidden_size') and hasattr(module, 'num_heads'):
+                            module.head_dim = module.hidden_size // module.num_heads
+                        else:
+                            module.head_dim = None
+                    
+                    # === KV 缓存相关属性 ===
+                    if not hasattr(module, 'past_key_value'):
+                        module.past_key_value = None
+                    if not hasattr(module, 'past_key_values'):
+                        module.past_key_values = None
+                    
+                    # === 其他推理相关属性 ===
+                    if not hasattr(module, 'layer_idx'):
+                        module.layer_idx = None
+                    if not hasattr(module, 'is_causal'):
+                        module.is_causal = True
+                    if not hasattr(module, 'attention_dropout'):
+                        module.attention_dropout = 0.0
+                    
+                    patched_count += 1
+            
+            if patched_count > 0:
+                print(f"✓ 已为 {patched_count} 个 Attention 模块添加属性补丁（共 13 个属性）")
         except Exception as e:
             # 如果补丁失败也不影响运行
             print(f"⚠ 属性补丁应用失败（可忽略）: {e}")
