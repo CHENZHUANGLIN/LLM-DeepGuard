@@ -65,12 +65,7 @@ class SecurityGuard:
                 # 从路径加载训练好的权重
                 try:
                     from peft import PeftModel
-                    # 强制使用本地文件，不尝试从 HuggingFace 下载
-                    self.model = PeftModel.from_pretrained(
-                        self.model, 
-                        str(self.adapter_path),
-                        local_files_only=True
-                    )
+                    self.model = PeftModel.from_pretrained(self.model, str(self.adapter_path))
                     print("✓ Adapter 加载成功")
                 except Exception as e:
                     print(f"⚠ Adapter 加载失败: {e}")
@@ -78,6 +73,10 @@ class SecurityGuard:
             
             # 设置为推理模式
             FastLanguageModel.for_inference(self.model)
+            
+            # 修复 Qwen2Attention 的属性缺失问题
+            self._patch_attention_attributes()
+            
             print("✓ 模型加载完成\n")
             
         except Exception as e:
@@ -113,16 +112,33 @@ class SecurityGuard:
                 max_length=self.max_length
             ).to(self.model.device)
             
-            # 生成
+            # 生成 - 使用更安全的配置避免属性错误
             with torch.no_grad():
-                outputs = self.model.generate(
-                    **inputs,
-                    max_new_tokens=10,  # 只需要生成 SAFE 或 UNSAFE
-                    temperature=DefenseConfig.GUARD_TEMPERATURE,
-                    do_sample=False,  # 使用贪婪解码以获得最确定的结果
-                    pad_token_id=self.tokenizer.pad_token_id,
-                    eos_token_id=self.tokenizer.eos_token_id,
-                )
+                try:
+                    outputs = self.model.generate(
+                        **inputs,
+                        max_new_tokens=10,  # 只需要生成 SAFE 或 UNSAFE
+                        temperature=DefenseConfig.GUARD_TEMPERATURE,
+                        do_sample=False,  # 使用贪婪解码以获得最确定的结果
+                        pad_token_id=self.tokenizer.pad_token_id,
+                        eos_token_id=self.tokenizer.eos_token_id,
+                        use_cache=False,  # 禁用缓存避免属性访问错误
+                    )
+                except AttributeError as attr_err:
+                    # 如果出现属性错误，尝试使用更基础的生成方式
+                    if "Qwen2Attention" in str(attr_err):
+                        # 重新生成，禁用所有优化
+                        outputs = self.model.generate(
+                            **inputs,
+                            max_new_tokens=10,
+                            do_sample=False,
+                            pad_token_id=self.tokenizer.pad_token_id,
+                            eos_token_id=self.tokenizer.eos_token_id,
+                            use_cache=False,
+                            attention_mask=inputs.get('attention_mask'),
+                        )
+                    else:
+                        raise
             
             # 解码输出
             response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
@@ -209,6 +225,25 @@ class SecurityGuard:
             if words[i] == words[i+1] == words[i+2]:
                 return True
         return False
+    
+    def _patch_attention_attributes(self):
+        """为 Qwen2Attention 对象添加缺失的属性，避免推理时的属性错误"""
+        try:
+            # 遍历模型的所有模块
+            for name, module in self.model.named_modules():
+                if 'Qwen2Attention' in str(type(module)):
+                    # 添加可能缺失的属性
+                    if not hasattr(module, 'temp_KV'):
+                        module.temp_KV = None
+                    if not hasattr(module, 'temp_QA'):
+                        module.temp_QA = None
+                    if not hasattr(module, 'RH_Q'):
+                        module.RH_Q = None
+                    if not hasattr(module, 'paged_attention_K'):
+                        module.paged_attention_K = None
+        except Exception as e:
+            # 如果补丁失败也不影响运行
+            print(f"⚠ 属性补丁应用失败（可忽略）: {e}")
     
     def batch_check(self, texts: list[str]) -> list[tuple[bool, str, float, dict]]:
         """
