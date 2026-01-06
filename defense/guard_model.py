@@ -65,7 +65,12 @@ class SecurityGuard:
                 # 从路径加载训练好的权重
                 try:
                     from peft import PeftModel
-                    self.model = PeftModel.from_pretrained(self.model, str(self.adapter_path))
+                    # 强制使用本地文件，不尝试从 HuggingFace 下载
+                    self.model = PeftModel.from_pretrained(
+                        self.model, 
+                        str(self.adapter_path),
+                        local_files_only=True
+                    )
                     print("✓ Adapter 加载成功")
                 except Exception as e:
                     print(f"⚠ Adapter 加载失败: {e}")

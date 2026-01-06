@@ -477,11 +477,11 @@ class ImprovedModelEvaluator:
             sft_val = sft_overall[metric]
             dpo_val = dpo_overall[metric]
             
-            # 对于rate类指标，越低越好
+            # 对于rate类指标，越低越好（改善值为正时表示降低了）
             if "rate" in metric:
-                improvement = (sft_val - dpo_val) / sft_val * 100 if sft_val > 0 else 0
+                improvement = (sft_val - dpo_val) * 100  # 直接相减，转为百分点
             else:
-                improvement = (dpo_val - sft_val) / sft_val * 100 if sft_val > 0 else 0
+                improvement = (dpo_val - sft_val) * 100  # 直接相减，转为百分点
             
             comparison[metric] = {
                 "sft": sft_val,
@@ -505,7 +505,7 @@ class ImprovedModelEvaluator:
             if cat in sft_cat and cat in dpo_cat:
                 sft_acc = sft_cat[cat]["accuracy"]
                 dpo_acc = dpo_cat[cat]["accuracy"]
-                improvement = (dpo_acc - sft_acc) / sft_acc * 100 if sft_acc > 0 else 0
+                improvement = (dpo_acc - sft_acc) * 100  # 直接相减，转为百分点
                 
                 comparison[cat] = {
                     "sft_accuracy": sft_acc,
@@ -528,7 +528,7 @@ class ImprovedModelEvaluator:
             if diff in sft_diff and diff in dpo_diff:
                 sft_acc = sft_diff[diff]["accuracy"]
                 dpo_acc = dpo_diff[diff]["accuracy"]
-                improvement = (dpo_acc - sft_acc) / sft_acc * 100 if sft_acc > 0 else 0
+                improvement = (dpo_acc - sft_acc) * 100  # 直接相减，转为百分点
                 
                 comparison[diff] = {
                     "sft_accuracy": sft_acc,
@@ -647,13 +647,13 @@ class ImprovedModelEvaluator:
             dpo_val = data["dpo"]
             improvement = data["improvement"]
             
-            # 格式化改进显示
+            # 格式化改进显示（使用百分点而非百分比）
             if improvement > 0:
-                imp_str = f"+{improvement:.1f}% ⭐"
+                imp_str = f"+{improvement:.1f}pp ⭐"
             elif improvement < 0:
-                imp_str = f"{improvement:.1f}% ⚠️"
+                imp_str = f"{improvement:.1f}pp ⚠️"
             else:
-                imp_str = "0.0%"
+                imp_str = "0.0pp"
             
             print(f"  {metric:<25} {sft_val:<12.4f} {dpo_val:<12.4f} {imp_str}")
         
@@ -681,7 +681,7 @@ class ImprovedModelEvaluator:
                 elif improvement > 0:
                     stars = "⭐"
                 
-                print(f"  {cat:<20} {sft_acc:<12.4f} {dpo_acc:<12.4f} +{improvement:>5.1f}% {stars}")
+                print(f"  {cat:<20} {sft_acc:<12.4f} {dpo_acc:<12.4f} +{improvement:>5.1f}pp {stars}")
         
         # 按难度改进
         diff_comp = comparison["difficulty_improvement"]
@@ -695,7 +695,7 @@ class ImprovedModelEvaluator:
                     improvement = data["improvement"]
                     
                     stars = "⭐⭐⭐⭐" if improvement > 15 else "⭐⭐⭐" if improvement > 10 else "⭐⭐" if improvement > 5 else "⭐"
-                    print(f"  {diff.upper():<10} {sft_acc:.4f} → {dpo_acc:.4f}  (+{improvement:.1f}%) {stars}")
+                    print(f"  {diff.upper():<10} {sft_acc:.4f} → {dpo_acc:.4f}  (+{improvement:.1f}pp) {stars}")
         
         # 错误减少
         error_comp = comparison["error_reduction"]
@@ -713,31 +713,31 @@ class ImprovedModelEvaluator:
         # 准确率改进
         acc_improvement = overall["accuracy"]["improvement"]
         if acc_improvement > 5:
-            print(f"  ✓ DPO显著提升了准确率 (+{acc_improvement:.1f}%)")
+            print(f"  ✓ DPO显著提升了准确率 (+{acc_improvement:.1f}pp)")
         elif acc_improvement > 0:
-            print(f"  ✓ DPO提升了准确率 (+{acc_improvement:.1f}%)")
+            print(f"  ✓ DPO提升了准确率 (+{acc_improvement:.1f}pp)")
         else:
-            print(f"  ✗ DPO未能提升准确率 ({acc_improvement:.1f}%)")
+            print(f"  ✗ DPO未能提升准确率 ({acc_improvement:.1f}pp)")
         
         # 漏报率改进
         fnr_improvement = overall["false_negative_rate"]["improvement"]
         if fnr_improvement > 20:
-            print(f"  ✓ DPO大幅降低了漏报率 (+{fnr_improvement:.1f}%)")
+            print(f"  ✓ DPO大幅降低了漏报率 (+{fnr_improvement:.1f}pp)")
         elif fnr_improvement > 0:
-            print(f"  ✓ DPO降低了漏报率 (+{fnr_improvement:.1f}%)")
+            print(f"  ✓ DPO降低了漏报率 (+{fnr_improvement:.1f}pp)")
         else:
-            print(f"  ✗ DPO未能降低漏报率 ({fnr_improvement:.1f}%)")
+            print(f"  ✗ DPO未能降低漏报率 ({fnr_improvement:.1f}pp)")
         
         # 困难样本改进
         if "hard" in diff_comp:
             hard_improvement = diff_comp["hard"]["improvement"]
             if hard_improvement > 10:
-                print(f"  ✓ DPO在困难样本上表现优秀 (+{hard_improvement:.1f}%)")
+                print(f"  ✓ DPO在困难样本上表现优秀 (+{hard_improvement:.1f}pp)")
         
         # 最大改进类别
         if cat_comp:
             max_improvement_cat = max(cat_comp.items(), key=lambda x: x[1]["improvement"])
-            print(f"  ✓ 最大改进: {max_improvement_cat[0]} (+{max_improvement_cat[1]['improvement']:.1f}%)")
+            print(f"  ✓ 最大改进: {max_improvement_cat[0]} (+{max_improvement_cat[1]['improvement']:.1f}pp)")
         
         print(f"\n【总结】")
         if acc_improvement > 5 and fnr_improvement > 10:
@@ -1074,12 +1074,13 @@ class ModelEvaluator(ImprovedModelEvaluator):
             baseline_val = baseline_metrics[metric]
             defense_val = defense_metrics[metric]
             
+            # 直接相减计算绝对提升（百分点）
             if "rate" in metric:
-                improvement = (baseline_val - defense_val) / baseline_val * 100 if baseline_val > 0 else 0
+                improvement = (baseline_val - defense_val) * 100  # 对于rate类指标，降低是好的
             else:
-                improvement = (defense_val - baseline_val) / baseline_val * 100 if baseline_val > 0 else 0
+                improvement = (defense_val - baseline_val) * 100  # 对于其他指标，增加是好的
             
-            improvement_str = f"{improvement:+.1f}%"
+            improvement_str = f"{improvement:+.1f}pp"  # pp表示百分点(percentage points)
             print(f"{metric:<25} {baseline_val:<15.4f} {defense_val:<15.4f} {improvement_str:<10}")
     
     def save_results(self, baseline_metrics: Dict, defense_metrics: Dict,
