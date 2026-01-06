@@ -1,8 +1,6 @@
 # 忽略训练过程中的检查点文件夹
 checkpoint-*/
 
-models/
-
 # ===== 忽略超大优化器状态文件 =====
 # PyTorch Lightning / Trainer 默认目录
 lightning_logs/
