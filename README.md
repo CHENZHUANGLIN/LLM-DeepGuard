@@ -106,24 +106,84 @@ python main.py --full-pipeline  # 完整流程
 
 ```
 LLM-DeepGuard/
-├── main.py                    # 主程序入口
-├── web_app.py                 # Web界面服务器
-├── defense_manager.py         # 防御系统管理器
-├── core_llm.py                # 核心LLM接口
-├── defense/                   # 防御模块
-│   ├── guard_model.py         # AI安全卫士
-│   ├── keyword_filter.py      # 关键词过滤
-│   └── config.py              # 配置文件
-├── training/                  # 训练脚本
-│   ├── train_sft.py           # SFT训练
-│   └── train_dpo.py           # DPO训练
-├── evaluation/                # 评估模块
-│   ├── evaluate.py            # 评估脚本
-│   └── visualization.py       # 可视化
-├── data/                      # 数据生成
-└── web/                       # Web前端资源
-    ├── templates/
-    └── static/
+├── main.py                           # 主程序入口
+├── web_app.py                        # Web界面服务器
+├── defense_manager.py                # 防御系统管理器
+├── core_llm.py                       # 核心LLM接口（Ollama集成）
+├── requirements.txt                  # Python依赖清单
+├── environment.yml                   # Conda环境配置
+├── install_SecGPT.sh                 # 一键安装脚本（Linux/Mac）
+├── 启动SecGPT.sh                     # 一键启动脚本（Linux/Mac）
+│
+├── defense/                          # 防御模块
+│   ├── __init__.py
+│   ├── guard_model.py                # AI安全卫士（Qwen 2.5-3B微调模型）
+│   ├── keyword_filter.py             # 关键词过滤器（第1层防御）
+│   └── config.py                     # 防御系统配置
+│
+├── training/                         # 训练脚本
+│   ├── train_sft.py                  # 监督微调（SFT）训练脚本
+│   ├── train_dpo.py                  # 直接偏好优化（DPO）训练脚本
+│   └── train.log                     # 训练日志
+│
+├── evaluation/                       # 评估与可视化
+│   ├── __init__.py
+│   ├── evaluate.py                   # 评估脚本
+│   ├── visualization.py              # 可视化工具
+│   └── results/                      # 评估结果存储
+│       ├── evaluation_results.json   # 评估指标数据
+│       ├── confusion_matrices.png    # 混淆矩阵图
+│       ├── metrics_comparison.png    # 指标对比图
+│       ├── defense_layers_stats.png  # 防御层统计图
+│       └── roc_curve.png             # ROC曲线图
+│
+├── data/                             # 数据处理
+│   ├── generate_data.py              # 本地数据生成脚本
+│   ├── generate_data_with_api.py     # API数据生成脚本
+│   ├── sft_data.jsonl                # SFT训练数据集
+│   ├── dpo_data.jsonl                # DPO训练数据集
+│   ├── test_data.jsonl               # 测试数据集
+│   ├── generation_progress.json      # 数据生成进度
+│   └── generation_*.log              # 数据生成日志
+│
+├── web/                              # Web前端资源
+│   ├── templates/                    # HTML模板
+│   │   └── index.html                # 主页面
+│   └── static/                       # 静态资源
+│       ├── css/
+│       │   └── style.css             # 样式表
+│       └── js/
+│           └── app.js                # 前端交互脚本
+│
+├── models/                           # 基础模型存储
+│   └── Qwen2.5-3B-Instruct-bnb-4bit/ # 量化基础模型
+│       ├── config.json
+│       ├── model.safetensors
+│       ├── tokenizer.json
+│       ├── tokenizer_config.json
+│       └── ...
+│
+├── cerberus_models/                  # 微调模型与适配器
+│   ├── guard_sft_adapter/            # SFT微调适配器
+│   │   ├── adapter_config.json       # LoRA适配器配置
+│   │   ├── adapter_model.safetensors # LoRA权重
+│   │   ├── checkpoint-47/            # 训练检查点
+│   │   ├── checkpoint-94/
+│   │   ├── checkpoint-141/           # 最佳检查点
+│   │   └── ...
+│   └── guard_dpo_adapter/            # DPO微调适配器
+│       ├── adapter_config.json
+│       ├── adapter_model.safetensors
+│       ├── checkpoint-47/
+│       ├── checkpoint-94/            # 训练检查点
+│       └── ...
+│
+└── unsloth_compiled_cache/           # Unsloth编译缓存
+    ├── UnslothSFTTrainer.py
+    ├── UnslothDPOTrainer.py
+    ├── UnslothGRPOTrainer.py
+    ├── UnslothRLOOTrainer.py
+    └── UnslothRewardTrainer.py
 ```
 
 ## ⚙️ 主要配置
