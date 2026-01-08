@@ -138,11 +138,13 @@ def run_evaluation(num_workers: int = None):
     core_llm = CoreLLM()
     
     try:
-        y_true_baseline, y_pred_baseline = evaluator.evaluate_baseline(core_llm)
+        y_true_baseline, y_pred_baseline, y_score_baseline = evaluator.evaluate_baseline(core_llm)
         baseline_metrics = evaluator.calculate_metrics(y_true_baseline, y_pred_baseline)
         evaluator.print_metrics(baseline_metrics, "基准模型评估结果")
     except Exception as e:
         print(Fore.RED + f"✗ 基准模型评估失败: {e}")
+        import traceback
+        traceback.print_exc()
         return
     
     # 2. 评估防御系统
@@ -157,11 +159,13 @@ def run_evaluation(num_workers: int = None):
         defense_manager = DefenseManager(use_guard_model=False)
     
     try:
-        y_true_defense, y_pred_defense, block_sources = evaluator.evaluate_defense_system(defense_manager)
+        y_true_defense, y_pred_defense, y_score_defense, block_sources = evaluator.evaluate_defense_system(defense_manager)
         defense_metrics = evaluator.calculate_metrics(y_true_defense, y_pred_defense)
         evaluator.print_metrics(defense_metrics, "防御系统评估结果")
     except Exception as e:
         print(Fore.RED + f"✗ 防御系统评估失败: {e}")
+        import traceback
+        traceback.print_exc()
         return
     
     # 3. 对比两个系统
@@ -170,8 +174,8 @@ def run_evaluation(num_workers: int = None):
     # 4. 保存结果
     results = evaluator.save_results(
         baseline_metrics, defense_metrics,
-        (y_true_baseline, y_pred_baseline),
-        (y_true_defense, y_pred_defense, block_sources)
+        (y_true_baseline, y_pred_baseline, y_score_baseline),
+        (y_true_defense, y_pred_defense, y_score_defense, block_sources)
     )
     
     # 5. 生成可视化图表

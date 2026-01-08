@@ -97,11 +97,11 @@ class SecurityGuard:
             tuple: (is_safe, judgment, confidence, details)
                 - is_safe: True 表示安全，False 表示不安全
                 - judgment: 模型的原始判断结果
-                - confidence: 置信度
+                - confidence: 置信度（UNSAFE的概率，0-1之间）
                 - details: 详细信息字典
         """
         if not text or not isinstance(text, str):
-            return True, "SAFE", 1.0, {}
+            return True, "SAFE", 0.0, {}
         
         try:
             # 构造提示词
@@ -115,78 +115,128 @@ class SecurityGuard:
                 max_length=self.max_length
             ).to(self.model.device)
             
-            # 生成 - 使用更安全的配置避免属性错误
+            # 获取模型输出的logits来计算真实概率
             with torch.no_grad():
                 try:
-                    outputs = self.model.generate(
+                    # 先获取一个token的logits
+                    outputs = self.model(
                         **inputs,
-                        max_new_tokens=10,  # 只需要生成 SAFE 或 UNSAFE
-                        temperature=DefenseConfig.GUARD_TEMPERATURE,
-                        do_sample=False,  # 使用贪婪解码以获得最确定的结果
-                        pad_token_id=self.tokenizer.pad_token_id,
-                        eos_token_id=self.tokenizer.eos_token_id,
-                        use_cache=False,  # 禁用缓存避免属性访问错误
+                        use_cache=False,
                     )
+                    
+                    # 获取下一个token的logits
+                    next_token_logits = outputs.logits[:, -1, :]
+                    
+                    # 获取 SAFE 和 UNSAFE 对应的 token IDs
+                    safe_token_id = self.tokenizer.encode("SAFE", add_special_tokens=False)[0]
+                    unsafe_token_id = self.tokenizer.encode("UNSAFE", add_special_tokens=False)[0]
+                    
+                    # 提取这两个token的logits
+                    safe_logit = next_token_logits[0, safe_token_id].item()
+                    unsafe_logit = next_token_logits[0, unsafe_token_id].item()
+                    
+                    # 使用softmax计算概率
+                    import torch.nn.functional as F
+                    logits_tensor = torch.tensor([safe_logit, unsafe_logit])
+                    probs = F.softmax(logits_tensor, dim=0)
+                    
+                    safe_prob = probs[0].item()
+                    unsafe_prob = probs[1].item()
+                    
                 except AttributeError as attr_err:
                     # 如果出现属性错误，尝试动态修复并重试
                     error_msg = str(attr_err)
                     if "Qwen2Attention" in error_msg:
                         print(f"⚠ 检测到 Attention 属性错误，正在动态修复: {error_msg}")
-                        # 重新应用补丁
                         self._patch_attention_attributes()
-                        # 重新生成
-                        outputs = self.model.generate(
+                        # 重新计算
+                        outputs = self.model(
                             **inputs,
-                            max_new_tokens=10,
-                            do_sample=False,
-                            pad_token_id=self.tokenizer.pad_token_id,
-                            eos_token_id=self.tokenizer.eos_token_id,
                             use_cache=False,
                             attention_mask=inputs.get('attention_mask'),
                         )
+                        next_token_logits = outputs.logits[:, -1, :]
+                        safe_token_id = self.tokenizer.encode("SAFE", add_special_tokens=False)[0]
+                        unsafe_token_id = self.tokenizer.encode("UNSAFE", add_special_tokens=False)[0]
+                        safe_logit = next_token_logits[0, safe_token_id].item()
+                        unsafe_logit = next_token_logits[0, unsafe_token_id].item()
+                        import torch.nn.functional as F
+                        logits_tensor = torch.tensor([safe_logit, unsafe_logit])
+                        probs = F.softmax(logits_tensor, dim=0)
+                        safe_prob = probs[0].item()
+                        unsafe_prob = probs[1].item()
                     else:
                         raise
             
-            # 解码输出
-            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            # 生成文本判断（用于展示）
+            with torch.no_grad():
+                try:
+                    gen_outputs = self.model.generate(
+                        **inputs,
+                        max_new_tokens=10,
+                        temperature=DefenseConfig.GUARD_TEMPERATURE,
+                        do_sample=False,
+                        pad_token_id=self.tokenizer.pad_token_id,
+                        eos_token_id=self.tokenizer.eos_token_id,
+                        use_cache=False,
+                    )
+                except:
+                    # 如果生成失败，根据概率判断
+                    gen_outputs = None
             
-            # 提取判断结果（在 prompt 之后的部分）
-            raw_output = response[len(prompt):].strip()
-            judgment = raw_output.upper()
+            # 解码输出
+            if gen_outputs is not None:
+                response = self.tokenizer.decode(gen_outputs[0], skip_special_tokens=True)
+                raw_output = response[len(prompt):].strip()
+                judgment = raw_output.upper()
+            else:
+                judgment = "UNSAFE" if unsafe_prob > 0.5 else "SAFE"
+                raw_output = judgment
             
             # 分析可疑特征
             suspicious_features = self._analyze_features(text)
             
-            # 更精确地提取 SAFE/UNSAFE（避免子串匹配问题）
-            # 优先检查完整单词，避免 "UNSAFE" 匹配到 "SAFE" 中
-            if judgment.startswith("UNSAFE") or " UNSAFE" in judgment:
+            # 判断是否安全（基于概率）
+            # confidence 表示 UNSAFE 的概率（用于ROC曲线）
+            is_safe = unsafe_prob < 0.5
+            
+            # 更精确地提取 SAFE/UNSAFE
+            if judgment.startswith("UNSAFE") or " UNSAFE" in judgment or unsafe_prob > 0.5:
                 details = {
                     "raw_output": raw_output[:100],
                     "features": suspicious_features,
-                    "risk_level": "高危" if len(suspicious_features) >= 3 else "中危"
+                    "risk_level": "高危" if len(suspicious_features) >= 3 else "中危",
+                    "safe_prob": safe_prob,
+                    "unsafe_prob": unsafe_prob
                 }
-                return False, "UNSAFE", 0.9, details
-            elif judgment.startswith("SAFE") or " SAFE" in judgment:
+                return False, "UNSAFE", unsafe_prob, details
+            elif judgment.startswith("SAFE") or " SAFE" in judgment or unsafe_prob <= 0.5:
                 details = {
                     "raw_output": raw_output[:100],
                     "features": [],
-                    "risk_level": "安全"
+                    "risk_level": "安全",
+                    "safe_prob": safe_prob,
+                    "unsafe_prob": unsafe_prob
                 }
-                return True, "SAFE", 0.9, details
+                return True, "SAFE", unsafe_prob, details
             else:
-                # 如果模型输出不明确，记录原始输出并默认拦截
-                print(f"⚠ 模型输出不明确: {raw_output[:100]}")
+                # 如果模型输出不明确，使用概率判断
+                print(f"⚠ 模型输出不明确: {raw_output[:100]}, 使用概率判断")
                 details = {
                     "raw_output": raw_output[:100],
                     "features": suspicious_features,
-                    "risk_level": "未知"
+                    "risk_level": "未知",
+                    "safe_prob": safe_prob,
+                    "unsafe_prob": unsafe_prob
                 }
-                return False, "UNCLEAR", 0.5, details
+                return unsafe_prob < 0.5, "UNCLEAR", unsafe_prob, details
                 
         except Exception as e:
             print(f"✗ 安全检查失败: {e}")
+            import traceback
+            traceback.print_exc()
             # 发生错误时默认拦截
-            return False, f"ERROR: {str(e)}", 0.0, {}
+            return False, f"ERROR: {str(e)}", 1.0, {}
     
     def _analyze_features(self, text: str) -> list:
         """分析文本中的可疑特征"""

@@ -107,19 +107,19 @@ class ImprovedResultVisualizer:
         绘制 ROC 曲线
         
         Args:
-            baseline_pred: (y_true, y_pred) 基准模型预测
-            defense_pred: (y_true, y_pred) 防御系统预测
+            baseline_pred: (y_true, y_score) 基准模型预测（使用置信度分数）
+            defense_pred: (y_true, y_score) 防御系统预测（使用置信度分数）
         """
         fig, ax = plt.subplots(figsize=(10, 8))
         
-        # 基准模型 ROC
-        y_true_baseline, y_pred_baseline = baseline_pred
-        fpr_baseline, tpr_baseline, _ = roc_curve(y_true_baseline, y_pred_baseline)
+        # 基准模型 ROC - 使用置信度分数
+        y_true_baseline, y_score_baseline = baseline_pred
+        fpr_baseline, tpr_baseline, _ = roc_curve(y_true_baseline, y_score_baseline)
         roc_auc_baseline = auc(fpr_baseline, tpr_baseline)
         
-        # 防御系统 ROC
-        y_true_defense, y_pred_defense = defense_pred
-        fpr_defense, tpr_defense, _ = roc_curve(y_true_defense, y_pred_defense)
+        # 防御系统 ROC - 使用置信度分数
+        y_true_defense, y_score_defense = defense_pred
+        fpr_defense, tpr_defense, _ = roc_curve(y_true_defense, y_score_defense)
         roc_auc_defense = auc(fpr_defense, tpr_defense)
         
         # 绘制曲线
@@ -142,6 +142,8 @@ class ImprovedResultVisualizer:
         output_path = self.results_dir / "roc_curve.png"
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         print(f"✓ ROC 曲线已保存: {output_path}")
+        print(f"  - 基准模型: {len(set(y_score_baseline))} 个不同的置信度值")
+        print(f"  - 防御系统: {len(set(y_score_defense))} 个不同的置信度值")
         
         plt.close()
     
@@ -589,14 +591,14 @@ class ImprovedResultVisualizer:
         
         self.plot_confusion_matrices(baseline_cm, defense_cm)
         
-        # 2. ROC 曲线
+        # 2. ROC 曲线 - 使用置信度分数
         baseline_pred = (
             results["baseline_predictions"]["y_true"],
-            results["baseline_predictions"]["y_pred"]
+            results["baseline_predictions"].get("y_score", results["baseline_predictions"]["y_pred"])
         )
         defense_pred = (
             results["defense_predictions"]["y_true"],
-            results["defense_predictions"]["y_pred"]
+            results["defense_predictions"].get("y_score", results["defense_predictions"]["y_pred"])
         )
         
         self.plot_roc_curve(baseline_pred, defense_pred)

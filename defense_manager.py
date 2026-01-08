@@ -107,9 +107,11 @@ class DefenseManager:
                 }
         
         # ==================== 第2层: AI 卫士 ====================
+        guard_confidence = None  # 存储AI卫士的置信度
         if self.use_guard_model and "guard_model" not in skip_layers:
             try:
                 is_safe, judgment, confidence, ai_details = self.guard_model.check(user_input)
+                guard_confidence = confidence  # 保存置信度
                 
                 if not is_safe:
                     return {
@@ -117,10 +119,12 @@ class DefenseManager:
                         "message": "检测到潜在的不安全输入，请求已被拒绝。",
                         "source": "guard_model",
                         "blocked_by": f"AI判断: {judgment} (置信度: {confidence:.2f})",
+                        "confidence": confidence,  # 添加置信度字段
                         "details": {
                             "layer": "第2层 - AI 安全卫士",
                             "judgment": judgment,
                             "confidence": f"{confidence*100:.0f}%",
+                            "confidence_raw": confidence,  # 原始置信度数值
                             "risk_level": ai_details.get("risk_level", "未知"),
                             "suspicious_features": ai_details.get("features", []),
                             "explanation": self._generate_ai_explanation(judgment, confidence, ai_details),
@@ -147,9 +151,11 @@ class DefenseManager:
                 "message": response,
                 "source": "core_llm",
                 "blocked_by": None,
+                "confidence": guard_confidence if guard_confidence is not None else 0.1,  # 通过时使用AI卫士的置信度
                 "details": {
                     "layer": "第3层 - 核心LLM（提示词强化）",
-                    "status": "通过所有防御层"
+                    "status": "通过所有防御层",
+                    "guard_confidence": guard_confidence  # 保存AI卫士的置信度供评估使用
                 }
             }
         
